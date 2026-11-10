@@ -315,6 +315,9 @@ def clip(carpeta: str, cid: str, desde: float | None = None, hasta: float | None
         "titulo_proyecto": pj.get("titulo") or d.name,
         "marca": _datos_marca(m.cargar_cliente(l.get("cliente") or pj.get("cliente"))),
         "medios": _medios(d), "lista_fuentes": pt.fuentes_disponibles(),
+        "canciones": [p.name for p in m.canciones(m.cargar_cliente(l.get("cliente") or pj.get("cliente")))],
+        "sonido_defecto": {k: cfg.get(k) for k in ("musica", "volumen_musica", "efectos", "subir_volumen")},
+        "sin_puntuacion": bool(cfg.get("sin_puntuacion")),
         "fuentes": [{"nombre": p.name, "url": f"/fuentes/{p.name}", "familias": _familias(p)}
                     for p in sorted(list(m.FUENTES.glob("*.ttf")) + list(m.FUENTES.glob("*.otf")))],
     }
@@ -790,7 +793,7 @@ def crear_zip(datos: dict = Body(...)):
     carpetas = {str(p.get("carpeta")) for p in pedidos}
     token = uuid.uuid4().hex[:16]
     ruta = _ZIPS / f"{token}.zip"
-    usados, textos, n = set(), {}, 0
+    usados, textos, n, nombres = set(), {}, 0, set()
     with zipfile.ZipFile(ruta, "w", zipfile.ZIP_STORED, allowZip64=True) as z:
         for p in pedidos:
             d = _carpeta(str(p.get("carpeta")))
@@ -801,13 +804,14 @@ def crear_zip(datos: dict = Body(...)):
             if not video.is_file() or not video.resolve().is_relative_to(d.resolve()):
                 continue
             base = f"{d.name}/" if len(carpetas) > 1 else ""
+            nombre = m.nombre_publicar(l, usados=nombres)  # caption + hashtags
             z.write(m.clip_con_intro(l, d, intro=bool(datos.get("intro")), outro=str(datos.get("outro") or ""),
-                                     texto_outro=str(datos.get("texto_outro") or "")), base + video.name)
+                                     texto_outro=str(datos.get("texto_outro") or "")), base + nombre + ".mp4")
             n += 1
             meta = l.get("meta") or {}
             if datos.get("textos"):
                 tags = " ".join("#" + str(h).lstrip("#") for h in meta.get("hashtags") or [])
-                textos.setdefault(base, []).append(f"{video.stem}\n{meta.get('caption_post') or ''}\n{tags}\n")
+                textos.setdefault(base, []).append(f"{nombre}\n{meta.get('caption_post') or ''}\n{tags}\n")
             if datos.get("portadas"):
                 dis = pt.cargar_diseno(d, l, crear=False) or {}
                 img = dis.get("exportada")
@@ -828,7 +832,8 @@ def descargar_clip(carpeta: str, cid: str, intro: int = 0, outro: str = "", text
     video = Path(l.get("salida") or "")
     if not video.is_file() or not video.resolve().is_relative_to(d.resolve()):
         raise HTTPException(409, "Este clip todavía no tiene video renderizado.")
-    return FileResponse(m.clip_con_intro(l, d, intro=bool(intro), outro=outro, texto_outro=texto), filename=video.name)
+    return FileResponse(m.clip_con_intro(l, d, intro=bool(intro), outro=outro, texto_outro=texto),
+                        filename=m.nombre_publicar(l) + ".mp4")  # el nombre es el caption con sus hashtags
 
 
 @app.get("/api/outro/{carpeta}")

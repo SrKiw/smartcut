@@ -100,6 +100,10 @@ CONFIG_DEFECTO = {
     "quitar_muletillas": False,     # quita "eh", "mmm" sueltos
     "zoom_en_cortes": True,         # zoom alterno en cada corte de silencio (disimula el salto)
     "subir_volumen": True,          # deja cada clip a -14 LUFS: sube los videos grabados bajito
+    "musica": "",                   # "" sin musica | "azar" | nombre de una cancion de la carpeta musica
+    "volumen_musica": "normal",     # bajo, normal, alto (siempre baja sola cuando hablan)
+    "efectos": "suave",             # no | suave (zooms, textos, lower thirds) | completo (+ cada corte)
+    "sin_puntuacion": False,        # quita . , ! ? etc. de los subtitulos
     "cliente": "",                  # carpeta dentro de clientes/ (logo, intro/outro, glosario)
     "glosario": [],                 # nombres y palabras que la transcripcion debe escribir bien
     "corregir_con_claude": True,    # Claude corrige las palabras de los clips elegidos (glosario)
@@ -2254,7 +2258,19 @@ def _trozos(pals: list, max_pal: int, max_car: int, claves: set) -> list:
     return out
 
 
+_PUNTUACION = re.compile(r"[.,;:!?¡¿…\"“”«»()\[\]{}—–]+|(?<!\w)['‘’]|['‘’](?!\w|$)")
+
+
+def sin_puntuacion(texto: str) -> str:
+    """'¡Hola, mundo!' -> 'Hola mundo'. Deja el apostrofe pegado a la palabra (pa', to') y los guiones de adentro."""
+    t = _PUNTUACION.sub("", texto)
+    return t.strip("-").strip()
+
+
 def generar_ass(pals: list, cfg: dict, ow: int, oh: int, hook: str, claves: list, ruta: Path, dur: float) -> None:
+    if cfg.get("sin_puntuacion"):
+        pals = [dict(p, t=sin_puntuacion(p["t"])) for p in pals]
+        pals = [p for p in pals if p["t"]]
     estilo = cfg.get("estilo", "opus")
     fuente, fuente_c = cfg["fuente"], cfg["fuente_contraste"]
     blanco, activo, rojo = (_color_ass(cfg["color_texto"]), _color_ass(cfg["color_activo"]),
@@ -2465,6 +2481,182 @@ def subir_volumen(wav: Path, objetivo: float = -14.0, log=_log_defecto) -> float
     except Exception as e:
         log(f"   [aviso] no pude ajustar el volumen ({str(e)[:120]})")
         return None
+
+
+# --------------------------------------------------------------------------------------
+# Musica de fondo y efectos de sonido (v0.6)
+# --------------------------------------------------------------------------------------
+
+SONIDOS = AQUI / "sonidos"   # efectos hechos con earshot (MIT), ver sonidos/LEEME.txt
+MUSICA = AQUI / "musica"     # tu musica: la que pongas aqui (o en clientes/<cliente>/musica)
+EXT_AUDIO = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".opus")
+# efecto: (archivo, segundos antes del momento en que debe sonar su pico, dB)
+EFECTOS = {"zoom": ("zoom.wav", 0.32 - 0.17, -15), "corte": ("corte.wav", 0.215, -21), "golpe": ("golpe.wav", 0.019, -13),
+           "tecla": ("tecla.wav", 0.009, -19), "marcador": ("marcador.wav", 0.149 - 0.14, -15),
+           "sello": ("sello.wav", 0.181 - 0.13, -12), "lowerthird": ("lowerthird.wav", 0.25 - 0.15, -15),
+           "imagen": ("imagen.wav", 0.042, -15)}
+VOLUMEN_MUSICA = {"bajo": -34.0, "normal": -30.0, "alto": -26.0}  # LUFS de la musica mientras hablan
+
+
+def canciones(perfil: dict | None = None) -> list:
+    """Las canciones disponibles: primero las del cliente, luego las de la carpeta musica."""
+    carpetas = ([Path(perfil["_dir"]) / "musica"] if perfil and perfil.get("_dir") else []) + [MUSICA]
+    vistas, lista = set(), []
+    for c in carpetas:
+        if c.is_dir():
+            for p in sorted(c.iterdir()):
+                if p.suffix.lower() in EXT_AUDIO and p.name not in vistas:
+                    vistas.add(p.name)
+                    lista.append(p)
+    return lista
+
+
+def _leer_audio(ruta: Path, filtro: str = "", seg: float | None = None, desde: float = 0.0) -> np.ndarray:
+    """Cualquier audio -> float32 (n, 2) a 48 kHz."""
+    cmd = [FFMPEG, "-nostdin", "-v", "error"] + (["-ss", f"{desde:.3f}"] if desde else []) + ["-i", str(ruta)]
+    if seg:
+        cmd += ["-t", f"{seg:.3f}"]
+    cmd += (["-af", filtro] if filtro else []) + ["-vn", "-ac", "2", "-ar", "48000", "-f", "f32le", "-"]
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, **_SIN_VENTANA)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.decode("utf-8", "replace")[-400:])
+    return np.frombuffer(r.stdout, dtype="<f4").reshape(-1, 2).copy()
+
+
+def _ganancia_musica(voz: np.ndarray, sr: int, base_db: float) -> np.ndarray:
+    """Cuanto baja la musica en cada momento: abajo cuando hablan, +6 dB en las pausas largas.
+    Sube lento (0.4 s) y baja rapido (80 ms), como un ducking de radio."""
+    hop = int(0.02 * sr)
+    mono = np.abs(voz).max(axis=1)
+    n = len(mono) // hop
+    if n == 0:
+        return np.full(len(voz), 10 ** (base_db / 20), np.float32)
+    rms = np.sqrt((mono[:n * hop].reshape(n, hop) ** 2).mean(axis=1) + 1e-12)
+    habla = 20 * np.log10(rms) > -38
+    ret = int(0.3 / 0.02)  # se sostiene un poco despues de cada palabra
+    hab = np.convolve(habla.astype(np.float32), np.ones(ret), "full")[:n] > 0
+    meta = np.where(hab, 0.0, 6.0)
+    g, out = meta[0], np.empty(n, np.float32)
+    for i, mdb in enumerate(meta):
+        k = 0.02 / (0.08 if mdb < g else 0.4)
+        g += (mdb - g) * min(1.0, k * 3)
+        out[i] = g
+    out = 10 ** ((out + base_db) / 20)
+    return np.repeat(out, hop)[:len(voz)] if n * hop >= len(voz) else np.concatenate(
+        [np.repeat(out, hop), np.full(len(voz) - n * hop, out[-1], np.float32)])
+
+
+def mezclar_audio(wav: Path, cfg: dict, rel: list, tramos: list, elementos: list | None, semilla: str = "",
+                  log=_log_defecto) -> dict:
+    """Pone debajo de la voz la musica (con ducking) y los efectos en los zooms, textos, lower thirds,
+    imagenes y (si se pide) en cada corte. Escribe encima del mismo wav. Devuelve que puso."""
+    import random
+    modo_ef = str(cfg.get("efectos") or "no").lower()
+    cancion = str(cfg.get("musica") or "").strip()
+    if modo_ef in ("no", "") and cancion in ("", "no", "ninguna"):
+        return {}
+    with wave.open(str(wav), "rb") as w:
+        sr, ch = w.getframerate(), w.getnchannels()
+        voz = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").reshape(-1, ch).astype(np.float32) / 32768.0
+    if ch == 1:
+        voz = np.repeat(voz, 2, axis=1)
+    total = len(voz)
+    mezcla = voz.copy()
+    hecho = {"efectos": 0}
+
+    # --- efectos: (momento en el clip, nombre)
+    if modo_ef not in ("no", ""):
+        marcas = []
+        for el in elementos or []:
+            r = _rango_salida(el, tramos)
+            if not r:
+                continue
+            a = r[0]
+            tipo = el.get("tipo")
+            if tipo == "zoom":
+                if el.get("entrada", "suave") != "corte":
+                    marcas.append((a + min(RAMPA_ZOOM, (r[1] - a) / 2) / 2, "zoom"))
+                else:
+                    marcas.append((a, "corte"))
+            elif tipo == "texto":
+                anim = el.get("animacion") or "golpe"
+                if anim == "maquina":
+                    texto = " ".join(str(el.get("texto") or "").split())
+                    paso = max(2, min(7, int(70 / max(1, len(texto))))) / 100
+                    marcas += [(a + i * paso, "tecla") for i, c in enumerate(texto) if c.strip()]
+                else:
+                    marcas.append((a + (0.14 if anim == "marcador" else 0.13 if anim == "sello" else 0.0),
+                                   {"golpe": "golpe", "marcador": "marcador", "sello": "sello"}.get(anim, "golpe")))
+            elif tipo == "lowerthird":
+                marcas.append((a + 0.15, "lowerthird"))
+            elif tipo == "imagen":
+                marcas.append((a, "imagen"))
+        if modo_ef == "completo" and len(rel) > 1:  # un swish suave en cada salto de corte
+            t = 0.0
+            for a, b in rel[:-1]:
+                t += b - a
+                if not any(abs(t - m) < 0.5 for m, _ in marcas):
+                    marcas.append((t, "corte"))
+        cache = {}
+        for t, nombre in sorted(marcas):
+            archivo, antes, db = EFECTOS[nombre]
+            ruta = SONIDOS / archivo
+            if not ruta.exists():
+                continue
+            if nombre not in cache:
+                cache[nombre] = _leer_audio(ruta) * (10 ** (db / 20))
+            s = cache[nombre]
+            i0 = int(round((t - antes) * sr))
+            j0, k0 = max(0, i0), max(0, -i0)
+            n = min(len(s) - k0, total - j0)
+            if n > 0:
+                mezcla[j0:j0 + n] += s[k0:k0 + n]
+                hecho["efectos"] += 1
+
+    # --- musica de fondo
+    if cancion not in ("", "no", "ninguna"):
+        lista = canciones(cfg.get("_cliente"))
+        if cancion == "azar":
+            elegida = random.Random(semilla).choice(lista) if lista else None
+        else:
+            elegida = next((p for p in lista if p.name == cancion or p.stem == cancion), None)
+            if elegida is None and Path(cancion).is_file():
+                elegida = Path(cancion)
+        if elegida is None:
+            log("   [aviso] no hay musica: pon canciones en la carpeta 'musica' de SmartCut")
+        else:
+            base = VOLUMEN_MUSICA.get(str(cfg.get("volumen_musica") or "normal"), -30.0)
+            try:
+                dur = total / sr
+                largo = float(json.loads(correr([FFPROBE, "-v", "error", "-print_format", "json", "-show_format",
+                                                  str(elegida)])).get("format", {}).get("duration") or 0)
+                # arranca en un punto distinto de la cancion para cada clip, sin caer en el final
+                desde = random.Random(semilla + "m").uniform(0, max(0.0, min(largo * 0.5, largo - dur - 1))) if largo > dur + 2 else 0.0
+                mus = _leer_audio(elegida, "loudnorm=I=-14:TP=-1.5:LRA=11", seg=dur + 0.5, desde=desde)
+                if len(mus) == 0:
+                    raise RuntimeError("la cancion salio vacia")
+                if len(mus) < total:  # cancion corta: se repite
+                    mus = np.tile(mus, (int(np.ceil(total / len(mus))), 1))
+                mus = mus[:total]
+                g = _ganancia_musica(voz, sr, base + 14.0)  # la cancion viene a -14 LUFS
+                f_in, f_out = int(0.4 * sr), int(min(1.2, dur / 4) * sr)
+                env = np.ones(total, np.float32)
+                env[:f_in] = np.linspace(0, 1, f_in) if f_in < total else 1
+                if f_out < total:
+                    env[-f_out:] = np.linspace(1, 0, f_out)
+                mezcla += mus * (g * env)[:, None]
+                hecho["musica"] = elegida.name
+            except Exception as e:
+                log(f"   [aviso] no pude poner la musica {elegida.name} ({str(e)[:120]})")
+
+    pico = float(np.abs(mezcla).max()) if total else 0.0
+    if pico > 0.84:  # techo -1.5 dB: el AAC sube un poco los picos al codificar
+        mezcla *= 0.84 / pico
+    _escribir_wav(wav, mezcla.reshape(-1), sr, 2)
+    partes = ([f"musica: {hecho['musica']}"] if hecho.get("musica") else []) + ([f"{hecho['efectos']} efectos"] if hecho["efectos"] else [])
+    if partes:
+        log("   sonido: " + ", ".join(partes))
+    return hecho
 
 
 def _entrada_bumper(ruta: str, seg: float) -> tuple[list, bool, float]:
@@ -2807,6 +2999,7 @@ def renderizar_clip(video: str | Path, clip: dict, plan: dict, ass: Path, salida
     audio = _audio_recortado(video, ini, dur_src, rel, tmp / "audio.wav")
     if cfg.get("subir_volumen", True):
         subir_volumen(audio, log=log)
+    mezclar_audio(audio, cfg, rel, tramos, elementos, semilla=f"{Path(salida).stem}", log=log)
 
     # --- que frames del original se quedan (los mismos que el audio)
     corta = len(rel) > 1 or rel[0][0] > 1e-3 or rel[0][1] < dur_src - 1e-3
@@ -3504,6 +3697,33 @@ def clip_con_intro(linea: dict, trabajo: Path, log=_log_defecto, intro: bool = T
     return salida
 
 
+_NO_VA_EN_NOMBRE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def nombre_publicar(c: dict, maximo: int = 140, usados: set | None = None) -> str:
+    """El nombre del archivo es el caption para publicar con sus hashtags (sin lo que Windows no deja
+    poner en un nombre). Si es muy largo se corta el caption, nunca los hashtags."""
+    meta = c.get("meta") or c
+    caption = " ".join(str(meta.get("caption_post") or meta.get("titulo") or c.get("titulo") or "clip").split())
+    tags = " ".join("#" + str(h).strip().lstrip("#").replace(" ", "") for h in (meta.get("hashtags") or []) if str(h).strip())
+    caption = " ".join(_NO_VA_EN_NOMBRE.sub(" ", caption.replace('"', "")).split())
+    tags = " ".join(_NO_VA_EN_NOMBRE.sub("", tags).split())
+    espacio = maximo - (len(tags) + 1 if tags else 0)
+    if espacio < 20:  # demasiados hashtags: se quedan los que quepan
+        tags = " ".join(tags.split()[:4])[: maximo // 2]
+        espacio = maximo - len(tags) - 1
+    if len(caption) > espacio:
+        caption = caption[:espacio].rsplit(" ", 1)[0].rstrip(" ,.;-") + "…"
+    nombre = f"{caption} {tags}".strip().rstrip(". ") or "clip"
+    if usados is not None:
+        base, k = nombre, 2
+        while nombre.lower() in usados:
+            nombre = f"{base} ({k})"
+            k += 1
+        usados.add(nombre.lower())
+    return nombre
+
+
 def _keyframes_camara(plan: dict, fps: float) -> list:
     if plan.get("modo") != "seguir":
         return []
@@ -3523,6 +3743,7 @@ def renderizar_todos(video: str | Path, clips: list, datos: dict, trabajo: Path,
     pals = datos["palabras"]
     reac = datos.get("reacciones", [])
     wav = trabajo / "audio16k.wav"
+    usados_nombres: set = set()
     clips_dir = trabajo / "clips"
     clips_dir.mkdir(parents=True, exist_ok=True)
     proyecto = trabajo / "proyecto"
@@ -3563,7 +3784,8 @@ def renderizar_todos(video: str | Path, clips: list, datos: dict, trabajo: Path,
         ass = tmp / "subs.ass"
         hook = c.get("texto_hook") or c.get("titulo", "")
         generar_ass(rel, cfg, ow, oh, hook, c.get("palabras_clave", []), ass, dur_out)
-        nombre = f"{n:02d}_{c.get('puntuacion', 0)}pts_{slug(c.get('titulo', 'clip'), 40)}.mp4"
+        # el archivo se llama como el texto para publicar (caption + hashtags), listo para subir
+        nombre = nombre_publicar(c, usados=usados_nombres) + ".mp4"
         salida = clips_dir / nombre
         total = renderizar_clip(video, c, plan, ass, salida, info, ow, oh, cfg, tramos, capas, trabajo=trabajo, log=log)
         c = dict(c)
@@ -3575,6 +3797,9 @@ def renderizar_todos(video: str | Path, clips: list, datos: dict, trabajo: Path,
             "inicio": c["inicio"], "fin": c["fin"], "tramos": tramos, "fps": fps_out, "ancho": ow, "alto": oh,
             "fuente_w": info["w"], "fuente_h": info["h"], "formato": cfg.get("formato", "9:16"),
             "silencios": cfg.get("silencios", "normal"), "zoom_en_cortes": bool(cfg.get("zoom_en_cortes", True)),
+            "sonido": {"musica": cfg.get("musica") or "", "volumen_musica": cfg.get("volumen_musica") or "normal",
+                       "efectos": cfg.get("efectos") or "no", "subir_volumen": bool(cfg.get("subir_volumen", True))},
+            "sin_puntuacion": bool(cfg.get("sin_puntuacion")),
             "cortes": [], "tomas": [{"modo": "auto", "desde": c["inicio"], "hasta": c["fin"]}],
             "camara": {"modo": plan["modo"], "cw": plan.get("cw"), "ch": plan.get("ch"), "desde": c["inicio"], "hasta": c["fin"],
                        "recorte": plan.get("recorte"), "keyframes": _keyframes_camara(plan, fps_out)},
@@ -3624,6 +3849,13 @@ def cfg_de_linea(linea: dict, cfg: dict | None = None) -> dict:
         if valor is not None:
             cfg[k_cfg] = valor
     cfg["hook"] = bool((h.get("texto") or "").strip()) and h.get("activo", True)
+    if "sonido" not in linea:  # clips de antes de la v0.6: siguen sonando como cuando se hicieron
+        cfg.update(musica="", efectos="no")
+    for k, v in (linea.get("sonido") or {}).items():  # musica y efectos elegidos para este clip
+        if k in ("musica", "volumen_musica", "efectos", "subir_volumen") and v is not None:
+            cfg[k] = v
+    if linea.get("sin_puntuacion") is not None:
+        cfg["sin_puntuacion"] = bool(linea["sin_puntuacion"])
     return cfg
 
 

@@ -1,0 +1,13 @@
+Efectos de sonido de SmartCut (v0.6)
+
+Todos se hicieron con codigo usando earshot (licencia MIT, Copyright (c) 2026 Leon Lin),
+https://github.com/Leonxlnx/earshot . No son grabaciones de nadie: se pueden usar y publicar.
+
+zoom.wav        whoosh_fast/tight   (zoom suave)
+corte.wav       swipe/flick         (salto de corte, modo "completo")
+golpe.wav       pro_pop_in/round    (texto animado "Golpe")
+tecla.wav       pro_typing_key/soft (texto "Maquina", una por letra)
+marcador.wav    swipe/paper         (texto "Marcador")
+sello.wav       pro_impact/short    (texto "Sello")
+lowerthird.wav  whoosh_fast/whip    (entrada del lower third)
+imagen.wav      ui_pop/soft         (imagen encima)

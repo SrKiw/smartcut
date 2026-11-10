@@ -38,3 +38,7 @@ versiones/*/cliente_*.json
 
 # Modelos que se bajan aparte (ver LEEME)
 modelos/modnet.onnx
+
+# Efectos de SmartCut (hechos con earshot, MIT): si se suben. La musica es tuya: no se sube.
+!sonidos/*.wav
+musica/

@@ -44,6 +44,12 @@ def _clientes():
     return [SIN_CLIENTE] + m.listar_clientes()
 
 
+def _opciones_musica():
+    m.MUSICA.mkdir(exist_ok=True)
+    lista = m.canciones()
+    return [("Sin música", "")] + ([("Una al azar", "azar")] if lista else []) + [(p.stem, p.name) for p in lista]
+
+
 def guardar_key(key: str, cual: str = "ANTHROPIC_API_KEY") -> str:
     key = (key or "").strip()
     if cual == "ANTHROPIC_API_KEY" and not key.startswith("sk-"):
@@ -93,9 +99,11 @@ def al_elegir_cliente(nombre):
 
 
 def _opciones(cliente, estilo, tam, pos_hook, dur_hook, hook, silencios, muletillas, zoom, exportar,
-              modelo_whisper, corregir, retranscribir, presupuesto, flyer=None, flyer_seg=4, volumen=True) -> dict:
+              modelo_whisper, corregir, retranscribir, presupuesto, flyer=None, flyer_seg=4, volumen=True,
+              sin_punt=False, musica="", vol_musica="normal", efectos="suave") -> dict:
     return {
-        "subir_volumen": bool(volumen),
+        "subir_volumen": bool(volumen), "sin_puntuacion": bool(sin_punt), "musica": musica or "",
+        "volumen_musica": vol_musica or "normal", "efectos": efectos or "no",
         "flyer_final": flyer or "", "flyer_segundos": float(flyer_seg or 4),
         "cliente": "" if cliente in (None, SIN_CLIENTE) else cliente, "estilo": estilo,
         "tam_subtitulos": TAMANOS.get(tam, "normal"), "hook_posicion": POSICIONES.get(pos_hook, "arriba"),
@@ -418,6 +426,16 @@ with gr.Blocks(title="SmartCut") as demo:
                 muletillas = gr.Checkbox(value=CFG["quitar_muletillas"], label='Quitar "eh", "mmm"')
                 zoom = gr.Checkbox(value=CFG["zoom_en_cortes"], label="Zoom en cada corte")
                 volumen = gr.Checkbox(value=CFG.get("subir_volumen", True), label="Subir el volumen si está bajito")
+                sin_punt = gr.Checkbox(value=CFG.get("sin_puntuacion", False), label="Subtítulos sin signos de puntuación")
+            with gr.Row():
+                musica = gr.Dropdown(_opciones_musica(), value=CFG.get("musica") or "", label="Música de fondo",
+                                     info="Baja sola cuando hablan. Pon tus canciones en la carpeta 'musica'",
+                                     allow_custom_value=True)
+                vol_musica = gr.Radio(["bajo", "normal", "alto"], value=CFG.get("volumen_musica") or "normal",
+                                      label="Volumen de la música")
+                efectos = gr.Dropdown([("Sin efectos", "no"), ("En zooms, textos y lower thirds", "suave"),
+                                       ("También en cada corte", "completo")], value=CFG.get("efectos") or "suave",
+                                      label="Efectos de sonido")
                 exportar = gr.Checkbox(value=CFG["exportar_nle"], label="Exportar para Premiere / DaVinci")
             with gr.Row():
                 flyer = gr.File(label="Flyer al final (opcional)", file_types=["image", "video"], type="filepath",
@@ -472,7 +490,8 @@ with gr.Blocks(title="SmartCut") as demo:
     link_editor = gr.HTML("")
 
     opciones = [cliente, estilo, tam, pos_hook, dur_hook, hook, silencios, muletillas, zoom, exportar,
-                modelo_whisper, corregir, retranscribir, presupuesto, flyer, flyer_seg, volumen]
+                modelo_whisper, corregir, retranscribir, presupuesto, flyer, flyer_seg, volumen,
+                sin_punt, musica, vol_musica, efectos]
     salidas = [progreso, galeria, tabla, carpeta, gasto_md]
     salidas_crear = [*salidas, caja_repetido, aviso_repetido]
     entradas_crear = [link, archivo, desde, hasta, n, dmin, dmax, formato, instruccion, idioma, usar_ia, modelo_ia, *opciones]

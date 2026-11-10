@@ -423,6 +423,17 @@ class Editor {
         await this.cargarCapas(); this.dibujar()
       }))))
     c.append(h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: this.l.zoom_en_cortes !== false, onchange: e => this.cambio(() => { this.l.zoom_en_cortes = e.target.checked }) }), 'Zoom leve en cada corte de silencio'))
+    c.append(h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: this.l.sin_puntuacion ?? this.r.sin_puntuacion ?? false, onchange: e => this.cambio(() => { this.l.sin_puntuacion = e.target.checked }) }), 'Quitar los signos de puntuación (. , ¿? ¡!)'))
+    // musica y efectos (v0.6): se oyen en el video renderizado, no en esta vista previa
+    const so = this.l.sonido = this.l.sonido || { ...(this.r.sonido_defecto || {}) }
+    const canciones = this.r.canciones || []
+    c.append(h('div', { class: 'caja-toma' }, h('b', {}, 'Música y efectos'),
+      h('div', { class: 'fila' },
+        h('div', { class: 'campo' }, h('span', {}, 'Música de fondo'), sel(so.musica || '', [['', 'Sin música'], ...(canciones.length ? [['azar', 'Una al azar']] : []), ...canciones.map(x => [x, x.replace(/\.[^.]+$/, '')])], v => this.cambio(() => { so.musica = v }))),
+        h('div', { class: 'campo' }, h('span', {}, 'Volumen de la música'), sel(so.volumen_musica || 'normal', [['bajo', 'Bajo'], ['normal', 'Normal'], ['alto', 'Alto']], v => this.cambio(() => { so.volumen_musica = v })))),
+      h('div', { class: 'campo' }, h('span', {}, 'Efectos de sonido'), sel(so.efectos || 'no', [['no', 'Sin efectos'], ['suave', 'En zooms, textos y lower thirds'], ['completo', 'También en cada corte']], v => this.cambio(() => { so.efectos = v }))),
+      h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: so.subir_volumen !== false, onchange: e => this.cambio(() => { so.subir_volumen = e.target.checked }) }), 'Subir el volumen si está bajito'),
+      h('p', { class: 'ayuda' }, canciones.length ? 'La música baja sola cuando hablan. Se oye al renderizar.' : 'Para tener música, pon canciones (mp3) en la carpeta "musica" de SmartCut.')))
     c.append(h('button', { class: 'btn', title: 'Busca palabras mal oídas, sobre todo jerga dominicana. Cuesta menos de un centavo.', onclick: e => this.revisarJerga(e.currentTarget) }, '✦ Revisar palabras con Claude'))
     const progreso = h('p', { class: 'ayuda' })
     const pintarProgreso = e => { progreso.textContent = `Para entrenar a Whisper: ${e.minutos} de ${e.meta_minutos} min revisados (${e.frases} frases).` }
@@ -1128,7 +1139,7 @@ class Editor {
 
   // ------------------------------------------------ cambios, previa y guardado
   instantanea () {
-    return JSON.stringify({ l: { elementos: this.l.elementos || [], inicio: this.l.inicio, fin: this.l.fin, cortes: this.l.cortes, tomas: this.l.tomas, hook: this.l.hook, meta: this.l.meta, silencios: this.l.silencios, zoom_en_cortes: this.l.zoom_en_cortes, cliente: this.l.cliente, subtitulos: { ...this.l.subtitulos, palabras: undefined } }, pal: this.pal.map(w => [w.t, w.oculta || false]), cliente: this.cliente })
+    return JSON.stringify({ l: { elementos: this.l.elementos || [], inicio: this.l.inicio, fin: this.l.fin, cortes: this.l.cortes, tomas: this.l.tomas, hook: this.l.hook, meta: this.l.meta, silencios: this.l.silencios, zoom_en_cortes: this.l.zoom_en_cortes, cliente: this.l.cliente, sonido: this.l.sonido, sin_puntuacion: this.l.sin_puntuacion, subtitulos: { ...this.l.subtitulos, palabras: undefined } }, pal: this.pal.map(w => [w.t, w.oculta || false]), cliente: this.cliente })
   }
 
   restaurar (s) {
@@ -1174,6 +1185,7 @@ class Editor {
       silencios: this.l.silencios, zoom_en_cortes: this.l.zoom_en_cortes !== false, cliente: this.cliente,
       subtitulos: { estilo: this.l.subtitulos.estilo, tam: this.l.subtitulos.tam, palabras_clave: this.l.subtitulos.palabras_clave, palabras: this.pal.filter(w => w.i >= ini - 0.05 && w.i < fin - 0.08).map(w => ({ t: w.t, i: w.i, f: w.f, ...(w.oculta ? { oculta: true } : {}) })) },
       hook: this.l.hook, meta: this.l.meta, camara: this.l.camara, flyer: this.l.flyer || { ruta: '', segundos: 4 }, elementos: this.l.elementos || [],
+      ...(this.l.sonido ? { sonido: this.l.sonido } : {}), ...(this.l.sin_puntuacion != null ? { sin_puntuacion: this.l.sin_puntuacion } : {}),
       _automatico: this._automatico || undefined // lo que cambio Claude no se aprende como correccion tuya
     }
   }

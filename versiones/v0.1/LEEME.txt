@@ -1,0 +1,101 @@
+MiOpusClip - tu propio OpusClip
+================================
+
+Le das un video largo (archivo o link de YouTube) y te devuelve clips verticales listos para
+TikTok / Reels / Shorts:
+
+  1. Transcribe todo con tiempos por palabra (Whisper large-v3-turbo, en tu tarjeta de video).
+  2. Detecta las risas y aplausos del público (oro para stand-up).
+  3. Claude lee la transcripción, elige los mejores momentos y le pone a cada clip una
+     puntuación de 0 a 99 (hook, flujo, valor, tendencia), título, hook y texto para publicar.
+  4. Afina cada corte en el audio para no cortar media palabra, y si hay risas después del
+     remate, el clip termina cuando acaban.
+  5. Reencuadra a 9:16 siguiendo la cara de quien habla (si hay dos personas, cambia de una
+     a otra según quién mueve la boca).
+  6. Subtítulos animados + hook arriba los primeros 3 segundos.
+  7. Te abre una galería con todos los clips ordenados por puntuación.
+
+Tu video no sale de tu PC. A Claude solo se le manda el texto de la transcripción.
+
+
+INSTALAR (una sola vez, ~15 minutos)
+------------------------------------
+1. Descomprime esta carpeta donde quieras, por ejemplo C:\MiOpusClip
+   (mejor fuera de OneDrive y del Escritorio).
+2. Doble clic en INSTALAR.bat
+   - Instala Python 3.11, FFmpeg y Deno con winget si no los tienes.
+   - Instala las librerías y, como tienes tarjeta NVIDIA, las de la GPU.
+   - No te pregunta nada: la API key de Claude (opcional, ver abajo) la pones luego en la app,
+     en Configuración.
+   - Todo lo que hace queda anotado en instalacion.log.
+   - Baja el modelo de transcripción (~1.6 GB) y prueba que la GPU funcione.
+   - Crea el acceso directo "MiOpusClip" en el escritorio.
+   Si Windows pregunta "¿Permitir cambios?" o SmartScreen avisa, acepta.
+
+API key de Claude:
+   https://console.anthropic.com  ->  Settings  ->  API Keys  ->  Create Key
+   Es pago por uso (sin suscripción). Recarga $5 y te dura muchísimo:
+   - claude-sonnet-5-5 (por defecto): unos $0.10 por cada hora de video.
+   - claude-haiku-5-5: menos de 1 centavo por hora de video.
+   Sin key también funciona: elige los clips por risas, ritmo y preguntas (menos fino).
+
+
+USAR
+----
+Opción 1 - la app (recomendada)
+   Doble clic en "MiOpusClip" (escritorio) o en "ABRIR MiOpusClip.bat".
+   Se abre en tu navegador. Pega un link de YouTube o la ruta de un video
+   (en el Explorador: clic derecho sobre el video -> "Copiar como ruta"), o súbelo.
+   En "Qué buscas" puedes pedir algo concreto: "solo los chistes sobre la familia".
+   No cierres la ventana negra mientras la usas.
+
+Opción 2 - arrastrar y soltar
+   Arrastra un video encima de "Arrastra un video aqui.bat". Al terminar se abre la galería.
+
+Los clips quedan en la carpeta  resultados\<fecha>_<nombre del video>\
+   clips\          los .mp4 (el nombre empieza con el número y la puntuación)
+   galeria.html    para verlos todos, copiar el texto del post y descargar
+   clips.json      todos los datos (puntuación, tiempos, títulos)
+
+Velocidad aproximada con tu RTX 4050: una hora de video se transcribe en 2-4 minutos y
+cada clip se exporta en segundos (usa NVENC, el codificador de la tarjeta).
+Si vuelves a procesar el mismo video, la transcripción ya queda guardada.
+
+
+ESTILOS DE SUBTÍTULOS
+---------------------
+   opus     3 palabras, la que se está diciendo en amarillo (estilo OpusClip)
+   yulian   palabra por palabra con fundido, máx. 3 palabras / 16 letras, números en
+            amarillo y las palabras clave que elige Claude solas en rojo en la 2da línea
+   simple   frase en blanco, sin animación
+   ninguno  sin subtítulos (solo el hook)
+
+Usar tus fuentes (por ejemplo Helvetica Bold + Dirty Stains):
+   1. Copia los .ttf/.otf a la carpeta  fuentes
+   2. Abre config.json con el Bloc de notas y cambia:
+        "fuente": "Helvetica",
+        "fuente_contraste": "Dirty Stains DEMO",
+        "contraste_sin_acentos": true
+      (el nombre es el de la familia, el que sale al abrir la fuente en Windows)
+   En config.json también cambias colores, cantidad de clips, duraciones, formato, etc.
+
+
+PROBLEMAS
+---------
+* Algo no anda: doble clic en Diagnostico.bat y mira qué línea sale con [!!].
+
+* "la GPU falló y quedó en CPU": funciona igual, pero más lento. Normalmente se arregla
+  actualizando el driver de NVIDIA (GeForce Experience / NVIDIA App) y reiniciando.
+  Si sigue, abre una ventana en la carpeta y corre:
+     .venv\Scripts\python -m pip install --force-reinstall -r requirements-gpu.txt
+
+* Un link de YouTube no baja: YouTube cambia seguido. Actualiza yt-dlp:
+     .venv\Scripts\python -m pip install -U "yt-dlp[default]"
+  o descarga el video a mano y pásale el archivo.
+
+* Las caras no se siguen bien (planos muy abiertos, poca luz): el clip sale con el video
+  completo sobre un fondo desenfocado, que siempre se ve bien.
+
+* Para empezar de cero: borra la carpeta .venv y corre INSTALAR.bat otra vez.
+
+Usa videos tuyos o que tengas permiso para usar.

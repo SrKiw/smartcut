@@ -1,0 +1,8 @@
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+opencv-python>=4.9
+numpy
+pillow
+anthropic
+gradio>=6.0,<7
+yt-dlp[default]

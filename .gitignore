@@ -1,0 +1,40 @@
+# Secretos y datos de esta PC
+.env
+config.json
+cookies*.txt
+uso/
+instalacion.log
+
+# Entorno y caches
+.venv/
+__pycache__/
+*.pyc
+cache/
+node_modules/
+
+# Videos y resultados (pesan GB)
+resultados/
+_pruebas_v02/
+video_smartcut/salida/
+*.mp4
+*.mov
+*.mkv
+*.mp3
+*.wav
+
+# Material de clientes (logos, fotos de personas)
+clientes/
+
+# Texturas y fuentes con licencia que no permite redistribuir
+video_smartcut/public/
+
+# Copias viejas con su propio config
+versiones/*/config.json
+
+# Datos aprendidos de videos reales (transcripciones de clientes)
+entrenamiento/
+jerga_aprendida.json
+versiones/*/cliente_*.json
+
+# Modelos que se bajan aparte (ver LEEME)
+modelos/modnet.onnx

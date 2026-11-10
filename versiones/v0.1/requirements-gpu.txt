@@ -1,0 +1,3 @@
+# Solo con tarjeta NVIDIA. ctranslate2 4.8.4 trae cudnn64_9.dll 9.10.2.21: estas versiones van con esa.
+nvidia-cublas-cu12>=12.4,<13
+nvidia-cudnn-cu12==9.10.2.21

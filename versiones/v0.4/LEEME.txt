@@ -1,0 +1,230 @@
+NOVEDADES v0.3 (noviembre 2026): EL EDITOR
+==========================================
+Tu version anterior quedo guardada en versiones\v0.2.
+
+COMO SE ABRE
+   - En la app, despues de crear clips: boton "Editar los clips".
+   - O doble clic en "ABRIR Editor.bat". Se abre en tu navegador (http://127.0.0.1:7861).
+     No cierres la ventana negra del editor mientras lo usas.
+   Ahi salen todos tus videos (tambien los de la v0.1) y sus clips.
+
+QUE PUEDES HACER EN CADA CLIP
+   1. Ver lo que habia antes y despues: el editor carga 30 s de contexto a cada lado
+      (si alargas el clip hasta el borde, carga mas solo).
+   2. Mover el inicio y el fin: arrastra los bordes rojos de la linea de tiempo
+      (se pegan al principio o final de una palabra; con Shift no se pegan), o elige
+      una palabra y "Empezar aqui" / "Terminar aqui", o I / O en el cursor.
+   3. Corregir los subtitulos: clic en una palabra para elegirla, doble clic para
+      escribir. K = en rojo, Supr = cortarla del video, H = ocultarla solo del subtitulo.
+   4. Titulo (hook), su posicion, duracion y tamano; estilo y tamano de los subtitulos;
+      nivel de silencios; cliente (pestana "Texto").
+   5. Tomas: S divide el clip en el cursor y cada toma puede ser
+        Auto      sigue a quien habla (lo de siempre)
+        Recorte   encuadre fijo: arrastra el cuadro en el video original; zoom y
+                  "Centrar en la cara"; "Entrada suave" hace un paneo en vez de corte
+        Completo  el video entero sobre fondo desenfocado
+        Split     dos personas, una arriba y otra abajo (arrastra el cuadro A y el B,
+                  o "Buscar las 2 caras")
+        Grafico   una foto o video a pantalla completa mientras sigue el audio
+   6. "Asi va a quedar" muestra el clip vertical en vivo, con los mismos subtitulos,
+      logo y tarjeta de cierre que el render (los subtitulos usan el mismo motor que
+      ffmpeg, asi que lo que ves es lo que sale).
+   7. Renderizar: rehace ese clip con el motor de siempre (con la tarjeta, sin
+      llamar a Claude). Marca "Premiere/DaVinci" si tambien quieres la carpeta .otio.
+   Se guarda solo cada par de segundos (ultimas 20 versiones en proyecto\historial).
+   Ctrl+Z deshace. Espacio reproduce. Flechas: 1 s (con Shift, 5 s).
+
+TAMBIEN
+   - En la carpeta de un video, "Buscar" en la transcripcion y "Crear clip aqui" arma
+     un clip nuevo desde esa frase.
+   - Fotos y videos que subes como grafico quedan en la carpeta "medios" del video.
+   - El editor usa la tarjeta de video para hacer el video liviano de contexto.
+
+NOVEDADES v0.2 (noviembre 2026)
+===============================
+Tu version anterior quedo guardada en versiones\v0.1 por si quieres volver.
+
+1. SUBTITULOS DEL TAMANO CORRECTO
+   Antes salian mas chicos de lo que debian: el programa medía las letras distinto a como
+   las dibuja el video y las achicaba de mas. Ya esta arreglado y ahora eliges el tamaño:
+   Pequeño, Normal, Grande o Gigante (en la app o "tam_subtitulos" en config.json).
+
+2. EL TITULO (HOOK) DONDE QUIERAS
+   Arriba, en medio o encima de los subtitulos. Y cuanto dura: 3 s, 5 s o todo el clip.
+
+3. RECORTA LOS SILENCIOS
+   Suave / Normal / Agresivo. Corta las pausas por el audio, nunca a mitad de palabra ni
+   encima de risas. En cada corte alterna un zoom leve para que el salto no se note.
+   Opcional: quitar "eh" y "mmm" sueltos.
+
+4. CLIENTES: LOGO, INTRO/OUTRO, TARJETA DE CIERRE Y GLOSARIO
+   Cada cliente es una carpeta dentro de "clientes" con un cliente.json (abrelo con el
+   Bloc de notas: cada opcion trae su explicacion). Ya esta "la-escala":
+     - logo abajo al centro (el logo es TEMPORAL, sacado de un video: cambia logo.png
+       por el original con fondo transparente).
+     - tarjeta de cierre los ultimos 3.5 s: video oscurecido, "DE 12-2PM", el logo y
+       "ESCANDALO 102.5 FM", como su cierre de siempre.
+     - intro y outro: pon un video o una imagen y escribe el nombre en "intro"/"outro".
+     - glosario: nombres que siempre deben salir bien escritos (agrega los locutores).
+   En la app eliges el cliente y se llena solo con su estilo.
+   Para un cliente nuevo: copia la carpeta la-escala, cambiale el nombre y edita.
+
+5. TRANSCRIPCION MAS PRECISA (donde importa: en los clips)
+   - El glosario del cliente se le pasa a Whisper.
+   - Despues de elegir los clips, Claude Haiku corrige las palabras de esos clips con el
+     glosario, sin mover los tiempos (cuesta fracciones de centavo).
+   - Puedes cambiar a Whisper large-v3 (mas preciso, mas lento) en "Transcripcion".
+   - Opcional de pago: re-transcribir SOLO los clips elegidos con ElevenLabs (~4 centavos
+     por video). Necesita su API key (la pones en la app).
+   - "Comparar transcripciones.bat": arrastra un video y compara Whisper turbo contra
+     large-v3 (y ElevenLabs si tienes key) en 10 minutos. Te abre una pagina con las
+     diferencias en rojo para que escuches y decidas cual acierta mas con tu audio.
+
+6. CUANTO CUESTA CLAUDE
+   Antes de llamar a Claude el progreso dice cuanto va a costar (con los 3 modelos) y
+   despues cuanto costo de verdad. Todo queda en uso\uso.csv y la app muestra el total del
+   mes en "Configuracion y gasto de Claude". Puedes poner un presupuesto maximo por video.
+   Para ver el gasto sin abrir la app:  .venv\Scripts\python miopusclip.py gasto
+
+7. EXPORTAR A PREMIERE / DAVINCI
+   Marca "Exportar para Premiere / DaVinci". Por cada clip queda resultados\...\exportar\
+   con clip.otio (lo abren Premiere 2026 y DaVinci 20, que son los que tienes), el video ya
+   reencuadrado con 2 s de sobra en cada corte, los subtitulos con fondo transparente y en
+   .srt, y el logo y la tarjeta en sus propias pistas. Dentro hay un LEEME con los pasos.
+
+8. VOLVER A RENDERIZAR SIN GASTAR
+   Boton "Volver a renderizar con estas opciones": mismos clips, otro tamaño de letra,
+   otra posicion del titulo, otro cliente... sin volver a llamar a Claude.
+
+Cada clip ahora deja tambien su linea de tiempo en resultados\...\proyecto\clipNN.json:
+es lo que va a usar el editor de la v0.3.
+
+
+MiOpusClip - tu propio OpusClip
+================================
+
+Le das un video largo (archivo o link de YouTube) y te devuelve clips verticales listos para
+TikTok / Reels / Shorts:
+
+  1. Transcribe todo con tiempos por palabra (Whisper large-v3-turbo, en tu tarjeta de video).
+  2. Detecta las risas y aplausos del público (oro para stand-up).
+  3. Claude lee la transcripción, elige los mejores momentos y le pone a cada clip una
+     puntuación de 0 a 99 (hook, flujo, valor, tendencia), título, hook y texto para publicar.
+  4. Afina cada corte en el audio para no cortar media palabra, y si hay risas después del
+     remate, el clip termina cuando acaban.
+  5. Reencuadra a 9:16 siguiendo la cara de quien habla (si hay dos personas, cambia de una
+     a otra según quién mueve la boca).
+  6. Subtítulos animados + hook arriba los primeros 3 segundos.
+  7. Te abre una galería con todos los clips ordenados por puntuación.
+
+Tu video no sale de tu PC. A Claude solo se le manda el texto de la transcripción.
+
+
+INSTALAR (una sola vez, ~15 minutos)
+------------------------------------
+1. Descomprime esta carpeta donde quieras, por ejemplo C:\MiOpusClip
+   (mejor fuera de OneDrive y del Escritorio).
+2. Doble clic en INSTALAR.bat
+   - Instala Python 3.11, FFmpeg y Deno con winget si no los tienes.
+   - Instala las librerías y, como tienes tarjeta NVIDIA, las de la GPU.
+   - No te pregunta nada: la API key de Claude (opcional, ver abajo) la pones luego en la app,
+     en Configuración.
+   - Todo lo que hace queda anotado en instalacion.log.
+   - Baja el modelo de transcripción (~1.6 GB) y prueba que la GPU funcione.
+   - Crea el acceso directo "MiOpusClip" en el escritorio.
+   Si Windows pregunta "¿Permitir cambios?" o SmartScreen avisa, acepta.
+
+API key de Claude:
+   https://console.anthropic.com  ->  Settings  ->  API Keys  ->  Create Key
+   Es pago por uso (sin suscripción). Recarga $5 y te dura muchísimo:
+   - claude-sonnet-5-5 (por defecto): unos $0.10 por cada hora de video.
+   - claude-haiku-5-5: menos de 1 centavo por hora de video.
+   Sin key también funciona: elige los clips por risas, ritmo y preguntas (menos fino).
+
+
+USAR
+----
+Opción 1 - la app (recomendada)
+   Doble clic en "MiOpusClip" (escritorio) o en "ABRIR MiOpusClip.bat".
+   Se abre en tu navegador. Pega un link de YouTube o la ruta de un video
+   (en el Explorador: clic derecho sobre el video -> "Copiar como ruta"), o súbelo.
+   En "Qué buscas" puedes pedir algo concreto: "solo los chistes sobre la familia".
+   No cierres la ventana negra mientras la usas.
+
+Opción 2 - arrastrar y soltar
+   Arrastra un video encima de "Arrastra un video aqui.bat". Al terminar se abre la galería.
+
+Los clips quedan en la carpeta  resultados\<fecha>_<nombre del video>\
+   clips\          los .mp4 (el nombre empieza con el número y la puntuación)
+   galeria.html    para verlos todos, copiar el texto del post y descargar
+   clips.json      todos los datos (puntuación, tiempos, títulos)
+
+Velocidad aproximada con tu RTX 4050: una hora de video se transcribe en 2-4 minutos y
+cada clip se exporta en segundos (usa NVENC, el codificador de la tarjeta).
+Si vuelves a procesar el mismo video, la transcripción ya queda guardada.
+
+
+ESTILOS DE SUBTÍTULOS
+---------------------
+   opus     3 palabras, la que se está diciendo en amarillo (estilo OpusClip)
+   yulian   palabra por palabra con fundido, máx. 3 palabras / 16 letras, números en
+            amarillo y las palabras clave que elige Claude solas en rojo en la 2da línea
+   simple   frase en blanco, sin animación
+   ninguno  sin subtítulos (solo el hook)
+
+Usar tus fuentes (por ejemplo Helvetica Bold + Dirty Stains):
+   1. Copia los .ttf/.otf a la carpeta  fuentes
+   2. Abre config.json con el Bloc de notas y cambia:
+        "fuente": "Helvetica",
+        "fuente_contraste": "Dirty Stains DEMO",
+        "contraste_sin_acentos": true
+      (el nombre es el de la familia, el que sale al abrir la fuente en Windows)
+   En config.json también cambias colores, cantidad de clips, duraciones, formato, etc.
+
+
+PROBLEMAS
+---------
+* Algo no anda: doble clic en Diagnostico.bat y mira qué línea sale con [!!].
+
+* "la GPU falló y quedó en CPU": funciona igual, pero más lento. Normalmente se arregla
+  actualizando el driver de NVIDIA (GeForce Experience / NVIDIA App) y reiniciando.
+  Si sigue, abre una ventana en la carpeta y corre:
+     .venv\Scripts\python -m pip install --force-reinstall -r requirements-gpu.txt
+
+* Un link de YouTube no baja: YouTube cambia seguido. Actualiza yt-dlp:
+     .venv\Scripts\python -m pip install -U "yt-dlp[default]"
+  o descarga el video a mano y pásale el archivo.
+
+* Las caras no se siguen bien (planos muy abiertos, poca luz): el clip sale con el video
+  completo sobre un fondo desenfocado, que siempre se ve bien.
+
+* Para empezar de cero: borra la carpeta .venv y corre INSTALAR.bat otra vez.
+
+Usa videos tuyos o que tengas permiso para usar.
+
+== v0.3.1 (3 nov 2026) ==
+- Tipo de cliente (radio, canal_youtube, comediante, marca) en cliente.json.
+- Canal de YouTube: insignia con avatar + nombre + @usuario + boton Suscribete (bloque "canal" en cliente.json).
+- Flyer al final: imagen o video despues de cada clip. En la app (Edicion), en el editor (Publicar) o con --flyer.
+- YouTube "no eres un bot": reintenta con la sesion de tu navegador o con cookies.txt.
+
+== v0.4 (en curso) ==
+- Red de la casa: "PERMITIR EN LA RED (una vez).bat" y luego "ABRIR MiOpusClip en red.bat".
+  La ventana negra muestra la direccion para la Mac (http://IP:7860), el usuario y la clave.
+  El editor queda en el puerto 7861 con la misma clave. Para dejarlo siempre en red: "red_local": true en config.json.
+- Generador de portadas. En el editor, abre un video y pulsa "Portadas" (o, en un clip, pestana Publicar).
+    Generar portadas   una por clip con el mejor cuadro (nitido, bien expuesto, cara grande) y su titulo.
+                       No toca las que ya editaste, salvo que marques "Rehacer todas".
+    Editar             clic en una portada. Arrastra el texto; las asas cambian tamano, ancho y giro.
+                       *Entre asteriscos* va resaltado. Arrastra el fondo para reencuadrar; rueda = zoom
+                       (con ninguna capa elegida). Ctrl+Z deshace, Ctrl+D duplica, flechas mueven, Supr borra.
+    Plantillas         Titular abajo, Etiquetas, Impacto, Titular arriba y Banda de marca. Cambian el diseno
+                       con los colores, la letra y el logo del cliente; tu texto y tu cuadro se quedan.
+    Formatos           9:16, 4:5, 1:1 y 16:9 (para la miniatura de YouTube).
+    Exportar JPG       queda en resultados\<video>\portadas\. El diseno, en proyecto\portadaNN.json.
+    Video con portada  copia del clip con la portada en los primeros 0.1 s, para las apps donde la portada
+                       se elige de un cuadro del video. El clip original no cambia.
+    Guias              lo de afuera de las rayas se corta en la cuadricula del perfil (3:4).
+    Logos y personas   salen de clientes\<cliente>\marca y del bloque "marca" de cliente.json.
+    Letras             lo que pongas en la carpeta fuentes aparece en la lista.
+    Sin abrir nada     .venv\Scripts\python portadas.py "resultados\<carpeta>" --plantilla etiquetas

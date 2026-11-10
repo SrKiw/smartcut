@@ -1139,7 +1139,7 @@ class Editor {
 
   // ------------------------------------------------ cambios, previa y guardado
   instantanea () {
-    return JSON.stringify({ l: { elementos: this.l.elementos || [], inicio: this.l.inicio, fin: this.l.fin, cortes: this.l.cortes, tomas: this.l.tomas, hook: this.l.hook, meta: this.l.meta, silencios: this.l.silencios, zoom_en_cortes: this.l.zoom_en_cortes, cliente: this.l.cliente, sonido: this.l.sonido, sin_puntuacion: this.l.sin_puntuacion, subtitulos: { ...this.l.subtitulos, palabras: undefined } }, pal: this.pal.map(w => [w.t, w.oculta || false]), cliente: this.cliente })
+    return JSON.stringify({ l: { elementos: this.l.elementos || [], inicio: this.l.inicio, fin: this.l.fin, cortes: this.l.cortes, tomas: this.l.tomas, hook: this.l.hook, meta: this.l.meta, silencios: this.l.silencios, zoom_en_cortes: this.l.zoom_en_cortes, cliente: this.l.cliente, sonido: this.l.sonido, sin_puntuacion: this.l.sin_puntuacion, lugar_resaltes: this.l.lugar_resaltes, subtitulos: { ...this.l.subtitulos, palabras: undefined } }, pal: this.pal.map(w => [w.t, w.oculta || false]), cliente: this.cliente })
   }
 
   restaurar (s) {
@@ -1185,7 +1185,7 @@ class Editor {
       silencios: this.l.silencios, zoom_en_cortes: this.l.zoom_en_cortes !== false, cliente: this.cliente,
       subtitulos: { estilo: this.l.subtitulos.estilo, tam: this.l.subtitulos.tam, palabras_clave: this.l.subtitulos.palabras_clave, palabras: this.pal.filter(w => w.i >= ini - 0.05 && w.i < fin - 0.08).map(w => ({ t: w.t, i: w.i, f: w.f, ...(w.oculta ? { oculta: true } : {}) })) },
       hook: this.l.hook, meta: this.l.meta, camara: this.l.camara, flyer: this.l.flyer || { ruta: '', segundos: 4 }, elementos: this.l.elementos || [],
-      ...(this.l.sonido ? { sonido: this.l.sonido } : {}), ...(this.l.sin_puntuacion != null ? { sin_puntuacion: this.l.sin_puntuacion } : {}),
+      ...(this.l.sonido ? { sonido: this.l.sonido } : {}), ...(this.l.lugar_resaltes ? { lugar_resaltes: this.l.lugar_resaltes } : {}), ...(this.l.sin_puntuacion != null ? { sin_puntuacion: this.l.sin_puntuacion } : {}),
       _automatico: this._automatico || undefined // lo que cambio Claude no se aprende como correccion tuya
     }
   }

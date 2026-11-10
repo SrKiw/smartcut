@@ -5,6 +5,9 @@ const NOMBRES = { zoom: 'Zoom', imagen: 'Imagen', lowerthird: 'Lower third', tex
 // Textos que resaltan lo que se dice (v0.6). En el video final los dibuja libass con estas mismas animaciones.
 const ANIMACIONES = [['golpe', 'Golpe'], ['maquina', 'Máquina'], ['marcador', 'Marcador'], ['sello', 'Sello']]
 const ease = k => 1 - Math.pow(1 - clamp(k, 0, 1), 3)
+// alto de cada lugar (fraccion del cuadro); los subtitulos van en 0.60, en la zona segura de Reels
+const LUGARES = [['arriba', 'Arriba'], ['centro', 'Al centro'], ['subtitulos', 'Encima de los subtítulos']]
+const Y_LUGAR = { arriba: 0.24, centro: 0.42, subtitulos: 0.51 }
 const nuevoId = () => 'e' + Math.random().toString(36).slice(2, 8)
 const RAMPA = 0.35; const ENTRADA = 0.3
 
@@ -22,7 +25,7 @@ export function instalarElementos (Editor, { h, api, aviso, fmt }) {
       if (tipo === 'lowerthird') Object.assign(el, { nombre: '', cargo: '', estilo: 'barra', x: 0.06, y: 0.7, tam: 0.05, color: this.r.marca?.caja, entrada: 'deslizar', ...datos })
       if (tipo === 'texto') {
         el.hasta = Math.min(this.l.fin, t + 1.6)
-        Object.assign(el, { texto: this.palabraEn(t) || 'TEXTO', animacion: 'golpe', x: 0.5, y: 0.3, tam: 0.11, color: '#FFFFFF', fondo: this.r.marca?.colores?.[0] || '#FFD60A', ...datos })
+        Object.assign(el, { texto: this.palabraEn(t) || 'TEXTO', animacion: 'golpe', x: 0.5, y: Y_LUGAR[this.l.lugar_resaltes || 'arriba'], tam: 0.11, color: '#FFFFFF', fondo: this.r.marca?.colores?.[0] || '#FFD60A', ...datos })
       }
       this.guardarDeshacer(); this.elementos().push(el); this.sel.elemento = el.id
       this.marcarSucio(); this.armarPanel(); this.dibujar()
@@ -38,6 +41,17 @@ export function instalarElementos (Editor, { h, api, aviso, fmt }) {
         h('button', { class: 'btn chico', onclick: () => this.agregarElemento('texto') }, '+ Texto resaltado')))
       c.append(h('div', { class: 'fila' },
         h('button', { class: 'btn chico', title: 'Pone un texto animado en cada palabra clave (las rojas de los subtítulos)', onclick: () => this.resaltarClaves() }, '✨ Resaltar las palabras clave')))
+      // donde van los textos resaltados: lo eliges tu, para todo el clip (y cada uno se puede arrastrar)
+      const lugar = this.l.lugar_resaltes || 'arriba'
+      c.append(h('div', { class: 'campo' }, h('span', {}, 'Dónde van los textos resaltados'), h('div', { class: 'seg' },
+        LUGARES.map(([k, n]) => h('button', {
+          class: lugar === k ? 'on' : '',
+          onclick: () => {
+            this.guardarDeshacer(); this.l.lugar_resaltes = k
+            for (const e of this.elementos()) if (e.tipo === 'texto') { e.y = Y_LUGAR[k]; e.x = 0.5 }
+            this.marcarSucio(); this.armarPanel(); this.dibujar()
+          }
+        }, n)))))
       const fotos = [...(this.r.medios || []).map(i => ({ ...i, origen: 'proyecto' })), ...(this.r.marca?.imagenes || []).map(i => ({ ...i, origen: 'cliente' }))]
       if (fotos.length) {
         c.append(h('div', { class: 'imagenes-marca' }, fotos.map(i => h('button', { title: i.nombre, onclick: () => this.agregarElemento('imagen', { ruta: i.ruta, origen: i.origen }) }, h('img', { src: i.url, alt: i.nombre, loading: 'lazy' })))))
@@ -247,7 +261,7 @@ export function instalarElementos (Editor, { h, api, aviso, fmt }) {
         if (w.i - ultimo < 3 || ya.some(e => w.i < e.hasta && w.i + 1.4 > e.desde)) continue
         usadas.add(norm(w.t))
         const anim = ANIMACIONES[nuevos.length % ANIMACIONES.length][0]
-        nuevos.push({ id: nuevoId(), tipo: 'texto', texto: w.t.replace(/[^\p{L}\p{N}' ]/gu, ''), animacion: anim, desde: Math.max(this.l.inicio, w.i - 0.05), hasta: Math.min(this.l.fin, w.i + 1.4), x: 0.5, y: 0.3, tam: 0.11, color: '#FFFFFF', fondo: anim === 'sello' ? '#E10600' : (this.r.marca?.colores?.[0] || '#FFD60A') })
+        nuevos.push({ id: nuevoId(), tipo: 'texto', texto: w.t.replace(/[^\p{L}\p{N}' ]/gu, ''), animacion: anim, desde: Math.max(this.l.inicio, w.i - 0.05), hasta: Math.min(this.l.fin, w.i + 1.4), x: 0.5, y: Y_LUGAR[this.l.lugar_resaltes || 'arriba'], tam: 0.11, color: '#FFFFFF', fondo: anim === 'sello' ? '#E10600' : (this.r.marca?.colores?.[0] || '#FFD60A') })
         ultimo = w.i
       }
       if (!nuevos.length) { aviso('No encontré palabras clave libres para resaltar.', 'error'); return }

@@ -224,3 +224,13 @@ kbd { font: 11px ui-monospace, Consolas, monospace; background: #26262c; border:
 .plantillas { display: grid; grid-template-columns: 1fr 1fr }
 .portada-lista { max-height: 70vh; max-width: 80vw; display: block; border-radius: 8px }
 @media (max-width: 1150px) { .editor-portada { grid-template-columns: 100px minmax(0, 1fr) 310px } }
+/* el panel de la portada no usa las zonas del editor de clips (.panel { grid-area: panel }): sin esto la
+   cuadricula crea columnas de mas y la portada queda en 0 px de ancho */
+.editor-portada > .panel, .editor-portada > .col-cuadros, .editor-portada > .col-lienzo { grid-area: auto; grid-row: 1 }
+.editor-portada > .panel { overflow-y: auto; overflow-x: hidden }
+.col-lienzo { display: flex; align-items: center; justify-content: center }
+/* pantallas angostas (Mac chica, tablet): la portada arriba y los controles debajo */
+@media (max-width: 860px) {
+  .editor-portada { grid-template-columns: 84px minmax(0, 1fr); grid-template-rows: minmax(420px, 62vh) auto; height: auto }
+  .editor-portada > .panel { grid-column: 1 / -1; grid-row: 2 }
+}

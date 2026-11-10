@@ -52,6 +52,16 @@ RED = {"activa": False, "usuario": "miopusclip", "clave": ""}
 
 
 @app.middleware("http")
+async def _sin_cache_vieja(request: Request, call_next):
+    """El navegador revisa cada vez si el editor cambio (si no cambio, responde 304 y no baja nada).
+    Sin esto, despues de actualizar SmartCut se quedaba con el css/js viejo y la pantalla se veia rota."""
+    resp = await call_next(request)
+    if request.url.path.startswith("/web/"):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.middleware("http")
 async def _clave_de_red(request: Request, call_next):
     """En modo red, las otras compus (la Mac) entran con usuario y clave. Esta PC entra directo."""
     cliente = request.client.host if request.client else ""
@@ -208,10 +218,27 @@ def _miniatura(d: Path, linea: dict) -> str | None:
     return _url_media(d, mini) + f"?v={int(mini.stat().st_mtime)}"
 
 
+def _sello_codigo() -> float:
+    """La fecha del codigo mas nuevo: si cambia, este editor esta viejo y la app lo reinicia."""
+    return max((p.stat().st_mtime for p in (AQUI / "editor.py", AQUI / "miopusclip.py", AQUI / "portadas.py") if p.exists()), default=0.0)
+
+
+CODIGO_AL_ARRANCAR = _sello_codigo()
+
+
 @app.get("/api/estado")
 def estado():
     return {"version": m.VERSION, "nvenc": _nvenc(), "clientes": m.listar_clientes(),
-            "resultados": str(m.RESULTADOS)}
+            "resultados": str(m.RESULTADOS), "codigo": CODIGO_AL_ARRANCAR}
+
+
+@app.post("/api/apagar")
+def apagar(request: Request):
+    """Solo desde esta PC: la app lo usa para cambiar un editor viejo por uno con el codigo nuevo."""
+    if not request.client or request.client.host not in ("127.0.0.1", "::1"):
+        raise HTTPException(403, "Solo desde la PC.")
+    threading.Timer(0.3, lambda: os._exit(0)).start()
+    return {"ok": True}
 
 
 @app.get("/api/proyectos")

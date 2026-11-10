@@ -337,13 +337,42 @@ def _editor_corriendo() -> bool:
         return so.connect_ex(("127.0.0.1", 7861)) == 0
 
 
+def _editor_viejo() -> bool:
+    """True si el editor que esta corriendo arranco antes del ultimo cambio de codigo (o no dice cuando)."""
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:7861/api/estado", timeout=4) as r:
+            sello = float(json.loads(r.read().decode("utf-8")).get("codigo") or 0)
+    except Exception:
+        return False  # si no contesta bien, mejor no tocarlo
+    actual = max((p.stat().st_mtime for p in (m.AQUI / "editor.py", m.AQUI / "miopusclip.py", m.AQUI / "portadas.py")
+                  if p.exists()), default=0.0)
+    return sello < actual - 1
+
+
 def arrancar_editor() -> None:
     """Arranca el editor (en su propia ventana) si no esta corriendo, y espera a que responda."""
     import subprocess
     import sys
     import time
     if _editor_corriendo():
-        return
+        if not _editor_viejo():
+            return
+        # quedo abierto un editor de antes de actualizar SmartCut: se cambia por uno con el codigo nuevo
+        import urllib.request
+        try:
+            urllib.request.urlopen(urllib.request.Request("http://127.0.0.1:7861/api/apagar", data=b"{}", method="POST",
+                                                          headers={"Content-Type": "application/json"}), timeout=5)
+        except Exception:
+            pass
+        for _ in range(30):
+            time.sleep(0.3)
+            if not _editor_corriendo():
+                break
+        if _editor_corriendo():  # un editor muy viejo no sabe apagarse: hay que cerrar su ventana
+            print("[aviso] el editor que esta abierto es de una version vieja: cierra su ventana negra y vuelve a abrir SmartCut")
+            return
+        print("[info] el editor tenia codigo viejo: lo reinicie")
     flags = 0x00000010 if os.name == "nt" else 0  # CREATE_NEW_CONSOLE: su propia ventana negra
     args = [sys.executable, str(m.AQUI / "editor.py"), "--no-abrir"] + (["--red"] if RED["activa"] else [])
     subprocess.Popen(args, cwd=str(m.AQUI), creationflags=flags)
